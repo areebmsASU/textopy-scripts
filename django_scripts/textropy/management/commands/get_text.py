@@ -1,15 +1,14 @@
 from django.utils import timezone
-from collections import defaultdict
+from collections import Counter
 from time import sleep
 
 import requests as r
 from bs4 import BeautifulSoup
 
 from django.core.management.base import BaseCommand
-from entropy.models import Book, Author
+from textropy.models import Book, Author
 
-BASE_URL = "https://gutenberg.org"
-MAX_BOOK_IDS_PER_PAGE = 25
+from stop_words import STOP_WORDS
 
 
 class Command(BaseCommand):
@@ -17,24 +16,9 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         # Economics URL was scraped to get all of the gutenberg book_ids.
-        ["NO AUTHOR"]
-        for book_vals in Book.objects.filter(skipped=False):
-            if not book_vals.author:
-                book_vals.skip("NO AUTHOR")
-            elif "English" not in book_vals.raw_metadata["language"]:
-                book_vals.skip("NOT ENGLISH")
-            elif book_vals.raw_metadata["category"] != ["Text"]:
-                book_vals.skip("NOT A TEXT")
-            elif len(book_vals.author.split(" & ")) > 2:
-                book_vals.skip("TOO MANY AUTHORS")
+        for book in Book.objects.exclude(raw_text=None):
+            word_counts = Counter(book.raw_text.split())
+            for stop_word in STOP_WORDS:
+                del word_counts[stop_word]
 
-            for i in range(len(book_vals.raw_metadata["author"])):
-                life_span = book_vals.raw_metadata["author"][i].split(", ")[-1]
-                if "-" not in life_span:
-                    continue
-                name = book_vals.raw_metadata["author"][i].replace(", " + life_span, "")
-                gutenberg_id = book_vals.raw_metadata["author_link"][i].split("/")[-1]
-                author, _ = Author.objects.get_or_create(
-                    name=name, gutenberg_id=gutenberg_id, life_span=life_span
-                )
-                book_vals.authors.add(author)
+            print(book.title, word_counts.most_common(10))
