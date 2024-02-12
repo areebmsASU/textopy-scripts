@@ -1,11 +1,16 @@
 from collections import defaultdict
 from time import sleep
 
-import requests as r
+from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from django.utils import timezone
-from bs4 import BeautifulSoup
 
+
+try:
+    import requests as r
+    from bs4 import BeautifulSoup
+except ModuleNotFoundError:
+    pass
 BASE_URL = "https://gutenberg.org"
 
 
@@ -71,6 +76,9 @@ class Book(models.Model):
     metadata_retrieved_date = models.DateTimeField(null=True)
     raw_text = models.TextField(null=True)
     raw_metadata = models.JSONField(null=True)
+
+    text_lemma_counts = models.JSONField(null=True)
+    text_lemma_count_date = models.DateTimeField(null=True)
 
     title = models.TextField(null=True)
     authors = models.ManyToManyField(Author, related_name="books")
@@ -165,9 +173,48 @@ class Book(models.Model):
 
 
 class Chunk(models.Model):
+    CHUNK_SIZE = 3
+    book = models.ForeignKey(Book, on_delete=models.CASCADE, related_name="chunks")
     rel_id = models.IntegerField()
     text = models.TextField()
-    lemma = models.TextField()
+
+
+class Vocabulary(models.Model):
+    words = ArrayField(models.TextField())
+    date_created = models.DateTimeField(auto_now_add=True)
+
+
+class Entropy(models.Model):
+    "the excess information from related_chunk (Q) when current information is this_chunk (P)"
+    chunk = models.ForeignKey(Chunk, on_delete=models.CASCADE, related_name="entropies")
+    related_chunk = models.ForeignKey(Chunk, on_delete=models.CASCADE, related_name="+")
+    vocabulary = models.ForeignKey(
+        Vocabulary, on_delete=models.CASCADE, related_name="entropies"
+    )
+    value = models.FloatField()
+
+    class Meta:
+        unique_together = [
+            ["chunk", "related_chunk", "vocabulary"],
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.chunk_id} --{self.value}--> {self.related_chunk_id}"
+
+
+class LemmaCount(models.Model):
+    chunk = models.ForeignKey(
+        Chunk, on_delete=models.CASCADE, related_name="lemma_counts"
+    )
+    vocabulary = models.ForeignKey(
+        Vocabulary, on_delete=models.CASCADE, related_name="lemma_counts"
+    )
+    counts = models.JSONField()
+
+    class Meta:
+        unique_together = [
+            ["chunk", "vocabulary"],
+        ]
 
 
 class Line(models.Model):
@@ -181,4 +228,18 @@ class Line(models.Model):
     class Meta:
         unique_together = [
             ["rel_id", "book"],
+        ]
+
+
+class Lemma(models.Model):
+    text = models.TextField(unique=True, db_index=True)
+
+
+class Word(models.Model):
+    text = models.TextField(db_index=True)
+    lemma = models.ForeignKey(Lemma, on_delete=models.CASCADE, related_name="words")
+
+    class Meta:
+        unique_together = [
+            ["text", "lemma"],
         ]
