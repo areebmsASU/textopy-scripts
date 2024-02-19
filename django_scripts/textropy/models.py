@@ -185,7 +185,7 @@ class Vocabulary(models.Model):
 
 
 class Entropy(models.Model):
-    "the excess information from related_chunk (Q) when current information is this_chunk (P)"
+    "the excess information from related_chunk (Q) when current information is chunk (P)"
     chunk = models.ForeignKey(Chunk, on_delete=models.CASCADE, related_name="entropies")
     related_chunk = models.ForeignKey(Chunk, on_delete=models.CASCADE, related_name="+")
     vocabulary = models.ForeignKey(

@@ -37,4 +37,12 @@ def lambda_handler(event, context):
     for rel_id, text in query_results:
         results.append({"id": rel_id, "text": text})
 
-    return {"statusCode": 200, "body": json.dumps(results)}
+    return {
+        "statusCode": 200,
+        "headers": {
+            "Access-Control-Allow-Headers": "Content-Type",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "OPTIONS,POST,GET",
+        },
+        "body": json.dumps(results),
+    }
